@@ -135,28 +135,41 @@ ParameterHandler::declare(const libcamera::ControlInfoMap &controls)
     parameter_descriptors[id->name()] = descriptor;
 
     // Camera controls can have arrays for minimum and maximum values, but the parameter descriptor
-    // only supports scalar bounds. Get smallest bounds for minimum and maximum set and warn user.
+    // only supports scalar bounds. For array controls we skip adding numeric ranges and only warn.
     if (info.min().isArray() || info.max().isArray()) {
       RCLCPP_WARN_STREAM(
         node->get_logger(),
-        "unsupported control array bounds: {" << info.min().toString() << "} ... {" << info.max().toString() << "}");
+        id->name()
+          << ": unsupported control array bounds: {" << info.min().toString() << "} ... {"
+          << info.max().toString() << "}");
     }
 
-    switch (id->type()) {
-      CASE_RANGE(Integer32, IntegerRange, integer_range)
-      CASE_RANGE(Integer64, IntegerRange, integer_range)
-      CASE_RANGE(Float, FloatingPointRange, floating_point_range)
+    // Only add scalar bounds to the descriptor; array controls are handled without ranges.
+    if (ctrl_scalar) {
+      switch (id->type()) {
+        CASE_RANGE(Integer32, IntegerRange, integer_range)
+        CASE_RANGE(Integer64, IntegerRange, integer_range)
+        CASE_RANGE(Float, FloatingPointRange, floating_point_range)
 #if LIBCAMERA_VER_GE(0, 4, 0)
-      CASE_RANGE(Unsigned16, IntegerRange, integer_range)
-      CASE_RANGE(Unsigned32, IntegerRange, integer_range)
+        CASE_RANGE(Unsigned16, IntegerRange, integer_range)
+        CASE_RANGE(Unsigned32, IntegerRange, integer_range)
 #endif
-    default:
-      break;
+      default:
+        break;
+      }
     }
 
-    // clamp default ControlValue to min/max range and cast to ParameterValue
+    // Clamp default ControlValue to min/max range and cast to ParameterValue.
+    // For array controls, do not try to introspect libcamera's default via clamp()/cv_to_pv
+    // as this may require ControlValue::get<Span<...>>() with inconsistent state.
     try {
-      parameters[id->name()] = cv_to_pv(clamp(cv_def, info.min(), info.max()));
+      if (ctrl_scalar) {
+        parameters[id->name()] = cv_to_pv(clamp(cv_def, info.min(), info.max()));
+      }
+      else {
+        // No default for array controls; user / overrides may still set them explicitly.
+        parameters[id->name()] = rclcpp::ParameterValue {};
+      }
     }
     catch (const invalid_conversion &e) {
       RCLCPP_ERROR_STREAM(
