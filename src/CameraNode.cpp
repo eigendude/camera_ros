@@ -170,7 +170,7 @@ create_camera_publisher(rclcpp::Node *node, const std::string &topic)
   image_transport::CameraPublisher pub_camera;
 
   // Publisher QoS
-  const rclcpp::QoS publish_qos {1};
+  const rclcpp::QoS publish_qos {10};
 
   // NOTE: ROS 2 Rolling deprecates image_transport::create_camera_publisher(Node*, ...),
   // but this node still uses the older API. We intentionally call the deprecated
