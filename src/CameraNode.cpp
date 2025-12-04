@@ -324,11 +324,16 @@ CameraNode::CameraNode(const rclcpp::NodeOptions &options)
   param_descr_use_node_time.read_only = true;
   use_node_time = declare_parameter<bool>("use_node_time", false, param_descr_use_node_time);
 
-  // publisher for raw and compressed image
-  pub_image = this->create_publisher<sensor_msgs::msg::Image>("~/image_raw", 1);
+  // Use a small history depth to absorb WiFi / scheduling jitter,  without
+  // adding noticeable latency to image consumers.
+  constexpr std::size_t DEFAULT_HISTORY_DEPTH = 5;
+  auto qos = rclcpp::QoS(DEFAULT_HISTORY_DEPTH);
+
+  // publisher for raw and compressed image and camera info
+  pub_image = this->create_publisher<sensor_msgs::msg::Image>("~/image_raw", qos);
   pub_image_compressed =
-    this->create_publisher<sensor_msgs::msg::CompressedImage>("~/image_raw/compressed", 1);
-  pub_ci = this->create_publisher<sensor_msgs::msg::CameraInfo>("~/camera_info", 1);
+    this->create_publisher<sensor_msgs::msg::CompressedImage>("~/image_raw/compressed", qos);
+  pub_ci = this->create_publisher<sensor_msgs::msg::CameraInfo>("~/camera_info", qos);
 
   // start camera manager and check for cameras
   camera_manager.start();
